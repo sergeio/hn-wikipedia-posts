@@ -11,7 +11,7 @@ from pathlib import Path
 
 BASE_DIR = Path(__file__).resolve().parent
 STATIC_DIR = BASE_DIR
-PORT = 8000
+PORT = 8417
 CACHE_DIR = Path(__file__).resolve().parent / ".cache"
 CACHE_TTL = 30 * 86400  # one month
 API_BASE = "https://hn.algolia.com/api/v1/search"
