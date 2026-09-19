@@ -1,0 +1,14 @@
+body { font-family: Verdana, sans-serif; background: #f6f6ef; margin: 0; padding: 1rem; }
+h1 { font-size: 1.2rem; }
+form { margin-bottom: 1rem; }
+input, button { font-size: 1rem; padding: 0.25rem; }
+#status { margin-left: 0.5rem; color: #666; }
+ul { list-style: none; padding: 0; max-width: 50rem; }
+li { margin-bottom: 0.4rem; }
+.row { display: flex; align-items: baseline; gap: 0.5rem; }
+.pts { color: #828282; min-width: 3.5rem; text-align: right; }
+.dom { color: #828282; font-size: 0.85rem; }
+.title a { color: #000; text-decoration: none; }
+.title a:hover { text-decoration: underline; }
+li.read .title a { color: #b0b0b0; }
+li.read .pts, li.read .dom { color: #c9c9c9; }

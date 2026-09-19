@@ -1,0 +1,12 @@
+{
+  "$schema": "https://opencode.ai/config.json",
+  "lsp": true,
+  "permission": {
+    "bash": "ask",
+    "external_directory": "deny",
+    "read": {
+      "venv/": "deny",
+      "~/*-key": "deny"
+    }
+  }
+}

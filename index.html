@@ -1,0 +1,88 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>HN by domain</title>
+<link rel="stylesheet" href="/style.css">
+</head>
+<body>
+<h1>Hacker News top posts by domain</h1>
+<form id="f">
+  <label>Domain: <input id="domain" value="wikipedia.org" size="20"></label>
+  <label>Stories: <input id="count" type="number" min="1" max="1000" value="50" size="5"></label>
+  <button type="submit">Load</button>
+  <span id="status"></span>
+</form>
+<ul id="list"></ul>
+<script>
+const list = document.getElementById('list');
+const status = document.getElementById('status');
+const form = document.getElementById('f');
+const domainInput = document.getElementById('domain');
+const countInput = document.getElementById('count');
+
+const readKey = (d) => 'hn-reads:' + d;
+const getReads = (d) => { try { return JSON.parse(localStorage.getItem(readKey(d))) || {}; } catch { return {}; } };
+const setRead = (d, id, v) => {
+  const r = getReads(d);
+  if (v) r[id] = true; else delete r[id];
+  localStorage.setItem(readKey(d), JSON.stringify(r));
+};
+
+function render(stories, domain) {
+  const reads = getReads(domain);
+  list.innerHTML = '';
+  for (const s of stories) {
+    const li = document.createElement('li');
+    const row = document.createElement('div');
+    row.className = 'row';
+    const cb = document.createElement('input');
+    cb.type = 'checkbox';
+    cb.checked = !!reads[s.id];
+    cb.addEventListener('change', () => {
+      setRead(domain, s.id, cb.checked);
+      li.classList.toggle('read', cb.checked);
+    });
+    const pts = document.createElement('span');
+    pts.className = 'pts';
+    pts.textContent = s.points + ' pts';
+    const title = document.createElement('span');
+    title.className = 'title';
+    const a = document.createElement('a');
+    a.href = s.url;
+    a.textContent = s.title;
+    a.target = '_blank';
+    a.rel = 'noreferrer';
+    title.appendChild(a);
+    const dom = document.createElement('span');
+    dom.className = 'dom';
+    dom.textContent = '(' + s.domain + ')';
+    row.append(cb, pts, title, dom);
+    li.appendChild(row);
+    if (cb.checked) li.classList.add('read');
+    list.appendChild(li);
+  }
+}
+
+async function load() {
+  const domain = domainInput.value.trim() || 'wikipedia.org';
+  const count = countInput.value || 50;
+  status.textContent = 'loading...';
+  try {
+    const resp = await fetch(`/api/stories?domain=${encodeURIComponent(domain)}&count=${encodeURIComponent(count)}`);
+    if (!resp.ok) throw new Error('HTTP ' + resp.status);
+    const stories = await resp.json();
+    status.textContent = stories.length + ' stories';
+    render(stories, domain);
+  } catch (e) {
+    status.textContent = 'error: ' + e.message;
+    list.innerHTML = '';
+  }
+}
+
+form.addEventListener('submit', (e) => { e.preventDefault(); load(); });
+load();
+</script>
+</body>
+</html>
