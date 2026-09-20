@@ -14,7 +14,7 @@ a.pts { text-decoration: none; }
 a.pts:hover { text-decoration: underline; color: #666; }
 .title a { color: #000; text-decoration: none; }
 .title a:hover { text-decoration: underline; }
-li.read .title a { color: #b0b0b0; }
+li.read .title a { color: #b0b0b0; text-decoration: line-through; }
 li.read .pts { color: #d4d4d4; }
 li.quality .title a { color: #7a5c00; text-decoration: underline; }
 li.quality .pts { color: #a08a00; }
