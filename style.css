@@ -14,3 +14,12 @@ input[type="checkbox"]:hover { opacity: 1; }
 .title a:hover { text-decoration: underline; }
 li.read .title a { color: #b0b0b0; }
 li.read .pts { color: #d4d4d4; }
+li.quality .title a { color: #7a5c00; text-decoration: underline; }
+li.quality .pts { color: #a08a00; }
+button.quality {
+  background: none; border: none; padding: 0;
+  font-size: 0.9rem; cursor: pointer; opacity: 0.35;
+  filter: grayscale(1);
+}
+button.quality:hover { opacity: 0.8; }
+button.quality[aria-pressed="true"] { opacity: 1; filter: none; }

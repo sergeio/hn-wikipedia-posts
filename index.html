@@ -23,15 +23,17 @@ const domainInput = document.getElementById('domain');
 const countInput = document.getElementById('count');
 
 const readKey = (d) => 'hn-reads:' + d;
-const getReads = (d) => { try { return JSON.parse(localStorage.getItem(readKey(d))) || {}; } catch { return {}; } };
-const setRead = (d, id, v) => {
-  const r = getReads(d);
+const qualityKey = (d) => 'hn-quality:' + d;
+const getFlags = (key, d) => { try { return JSON.parse(localStorage.getItem(key(d))) || {}; } catch { return {}; } };
+const setFlag = (key, d, id, v) => {
+  const r = getFlags(key, d);
   if (v) r[id] = true; else delete r[id];
-  localStorage.setItem(readKey(d), JSON.stringify(r));
+  localStorage.setItem(key(d), JSON.stringify(r));
 };
 
 function render(stories, domain) {
-  const reads = getReads(domain);
+  const reads = getFlags(readKey, domain);
+  const qualityFlags = getFlags(qualityKey, domain);
   list.innerHTML = '';
   for (const s of stories) {
     const li = document.createElement('li');
@@ -41,8 +43,20 @@ function render(stories, domain) {
     cb.type = 'checkbox';
     cb.checked = !!reads[s.id];
     cb.addEventListener('change', () => {
-      setRead(domain, s.id, cb.checked);
+      setFlag(readKey, domain, s.id, cb.checked);
       li.classList.toggle('read', cb.checked);
+    });
+    const qbtn = document.createElement('button');
+    qbtn.type = 'button';
+    qbtn.className = 'quality';
+    qbtn.title = 'high quality';
+    qbtn.textContent = '👍';
+    qbtn.setAttribute('aria-pressed', String(!!qualityFlags[s.id]));
+    qbtn.addEventListener('click', () => {
+      const on = qbtn.getAttribute('aria-pressed') !== 'true';
+      setFlag(qualityKey, domain, s.id, on);
+      qbtn.setAttribute('aria-pressed', String(on));
+      li.classList.toggle('quality', on);
     });
     const pts = document.createElement('span');
     pts.className = 'pts';
@@ -57,9 +71,10 @@ function render(stories, domain) {
     const dom = document.createElement('span');
     dom.className = 'dom';
     dom.textContent = '(' + s.domain + ')';
-    row.append(cb, pts, title, dom);
+    row.append(cb, qbtn, pts, title, dom);
     li.appendChild(row);
     if (cb.checked) li.classList.add('read');
+    if (qbtn.getAttribute('aria-pressed') === 'true') li.classList.add('quality');
     list.appendChild(li);
   }
 }
