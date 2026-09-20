@@ -57,6 +57,11 @@ function render(stories, domain) {
       setFlag(qualityKey, domain, s.id, on);
       qbtn.setAttribute('aria-pressed', String(on));
       li.classList.toggle('quality', on);
+      if (on && !cb.checked) {
+        cb.checked = true;
+        setFlag(readKey, domain, s.id, true);
+        li.classList.add('read');
+      }
     });
     const pts = document.createElement('a');
     pts.className = 'pts';
