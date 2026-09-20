@@ -53,7 +53,11 @@ def write_cache(domain, hits):
 def fetch_stories(domain, count):
     """Return (stories, from_cache). Serves stale cache if the API fails."""
     cached = read_cache(domain)
-    if cached and time.time() - cached["fetched_at"] < CACHE_TTL:
+    if (
+        cached
+        and time.time() - cached["fetched_at"] < CACHE_TTL
+        and len(cached["hits"]) >= count
+    ):
         return cached["hits"][:count], True
 
     params = urllib.parse.urlencode(
@@ -61,7 +65,7 @@ def fetch_stories(domain, count):
             "tags": "story",
             "restrictSearchableAttributes": "url",
             "query": domain,
-            "hitsPerPage": min(count, MAX_COUNT),
+            "hitsPerPage": MAX_COUNT,
         }
     )
     url = f"{API_BASE}?{params}"
