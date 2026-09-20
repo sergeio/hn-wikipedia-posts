@@ -58,9 +58,11 @@ function render(stories, domain) {
       qbtn.setAttribute('aria-pressed', String(on));
       li.classList.toggle('quality', on);
     });
-    const pts = document.createElement('span');
+    const pts = document.createElement('a');
     pts.className = 'pts';
+    pts.href = 'https://news.ycombinator.com/item?id=' + s.id;
     pts.textContent = s.points;
+    pts.rel = 'noreferrer';
     const title = document.createElement('span');
     title.className = 'title';
     const a = document.createElement('a');

@@ -10,6 +10,8 @@ li { margin-bottom: 0.4rem; }
 input[type="checkbox"] { accent-color: #b8b8b8; opacity: 0.55; }
 input[type="checkbox"]:hover { opacity: 1; }
 .dom { color: #828282; font-size: 0.85rem; }
+a.pts { text-decoration: none; }
+a.pts:hover { text-decoration: underline; color: #666; }
 .title a { color: #000; text-decoration: none; }
 .title a:hover { text-decoration: underline; }
 li.read .title a { color: #b0b0b0; }
