@@ -87,6 +87,7 @@ def fetch_stories(domain, count):
                 "points": h.get("points") or 0,
                 "url": h.get("url") or f"https://news.ycombinator.com/item?id={h['objectID']}",
                 "domain": h.get("url", "").split("/")[2] if h.get("url") and "://" in h.get("url", "") else domain,
+                "year": (h.get("created_at") or "")[:4],
             }
             for h in data.get("hits", [])
         ]

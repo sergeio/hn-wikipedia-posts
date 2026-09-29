@@ -75,10 +75,17 @@ function render(stories, domain) {
     a.textContent = s.title;
     a.rel = 'noreferrer';
     title.appendChild(a);
+    let year = null;
+    if (s.year) {
+      year = document.createElement('span');
+      year.className = 'year';
+      year.textContent = '[' + s.year + ']';
+    }
     const dom = document.createElement('span');
     dom.className = 'dom';
     dom.textContent = '(' + s.domain + ')';
     row.append(cb, qbtn, pts, title, dom);
+    if (year) title.before(year);
     li.appendChild(row);
     if (cb.checked) li.classList.add('read');
     if (qbtn.getAttribute('aria-pressed') === 'true') li.classList.add('quality');
