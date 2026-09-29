@@ -18,7 +18,10 @@ API_BASE = "https://hn.algolia.com/api/v1/search"
 DEFAULT_DOMAIN = "wikipedia.org"
 DEFAULT_COUNT = 50
 MAX_COUNT = 1000
-HAS_DIED_RE = re.compile(r"(?i)\bhas died\b")
+FILTERED_TITLE_RES = [
+    re.compile(r"(?i)\bhas died\b"),
+    re.compile(r"(?i)wikip|wikimedia"),
+]
 
 
 
@@ -32,8 +35,8 @@ def normalize_domain(raw):
     return raw
 
 
-def is_death_post(title):
-    return bool(HAS_DIED_RE.search(title))
+def is_filtered(title):
+    return any(rx.search(title) for rx in FILTERED_TITLE_RES)
 
 
 def get_cache_path(domain):
@@ -87,7 +90,7 @@ def fetch_stories(domain, count):
             }
             for h in data.get("hits", [])
         ]
-        hits = [h for h in hits if not is_death_post(h["title"])]
+        hits = [h for h in hits if not is_filtered(h["title"])]
         hits.sort(key=lambda h: h["points"], reverse=True)
         write_cache(domain, hits)
         return hits[:count], False
@@ -124,7 +127,7 @@ class Handler(BaseHTTPRequestHandler):
             except Exception:
                 self.send_json({"error": "failed to fetch stories"}, 502)
                 return
-            stories = [s for s in stories if not is_death_post(s["title"])]
+            stories = [s for s in stories if not is_filtered(s["title"])]
             body = json.dumps(stories).encode()
             self.send_response(200)
             self.send_header("Content-Type", "application/json")
