@@ -15,6 +15,7 @@
   <span id="status"></span>
 </form>
 <a href="#" id="hideReadLink" class="toggleLink">[hide read]</a>
+<a href="#" id="hideUnreadLink" class="toggleLink">[hide unread]</a>
 <a href="#" id="hideLikedLink" class="toggleLink">[hide liked]</a>
 <ul id="list"></ul>
 <script>
@@ -24,6 +25,7 @@ const form = document.getElementById('f');
 const domainInput = document.getElementById('domain');
 const countInput = document.getElementById('count');
 const hideReadLink = document.getElementById('hideReadLink');
+const hideUnreadLink = document.getElementById('hideUnreadLink');
 const hideLikedLink = document.getElementById('hideLikedLink');
 
 let lastStories = null;
@@ -46,6 +48,7 @@ const makeToggle = (link, word, storageKey) => {
 };
 
 const isHideRead = makeToggle(hideReadLink, 'read', 'hn-hide-read');
+const isHideUnread = makeToggle(hideUnreadLink, 'unread', 'hn-hide-unread');
 const isHideLiked = makeToggle(hideLikedLink, 'liked', 'hn-hide-liked');
 
 const readKey = (d) => 'hn-reads:' + d;
@@ -63,10 +66,12 @@ function render(stories, domain) {
   const qualityFlags = getFlags(qualityKey, domain);
   const clickedFlags = getFlags(clickedKey, domain);
   const hideRead = isHideRead();
+  const hideUnread = isHideUnread();
   const hideLiked = isHideLiked();
   list.innerHTML = '';
   for (const s of stories) {
     if (hideRead && reads[s.id] && !qualityFlags[s.id]) continue;
+    if (hideUnread && !reads[s.id]) continue;
     if (hideLiked && qualityFlags[s.id]) continue;
     const li = document.createElement('li');
     const row = document.createElement('div');
