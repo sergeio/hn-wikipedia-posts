@@ -125,12 +125,10 @@ function render(stories, domain) {
 async function load() {
   const domain = domainInput.value.trim() || 'wikipedia.org';
   const count = countInput.value || 50;
-  status.textContent = 'loading...';
   try {
     const resp = await fetch(`/api/stories?domain=${encodeURIComponent(domain)}&count=${encodeURIComponent(count)}`);
     if (!resp.ok) throw new Error('HTTP ' + resp.status);
     const stories = await resp.json();
-    status.textContent = stories.length + ' stories';
     lastStories = stories;
     lastDomain = domain;
     render(stories, domain);
