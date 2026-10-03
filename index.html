@@ -14,7 +14,8 @@
   <button type="submit">Load</button>
   <span id="status"></span>
 </form>
-<a href="#" id="hideReadLink">[hide read]</a>
+<a href="#" id="hideReadLink" class="toggleLink">[hide read]</a>
+<a href="#" id="hideLikedLink" class="toggleLink">[hide liked]</a>
 <ul id="list"></ul>
 <script>
 const list = document.getElementById('list');
@@ -23,16 +24,29 @@ const form = document.getElementById('f');
 const domainInput = document.getElementById('domain');
 const countInput = document.getElementById('count');
 const hideReadLink = document.getElementById('hideReadLink');
+const hideLikedLink = document.getElementById('hideLikedLink');
 
 let lastStories = null;
 let lastDomain = null;
 
-const hideReadStorageKey = 'hn-hide-read';
-const isHideRead = () => localStorage.getItem(hideReadStorageKey) === 'true';
-const setHideRead = (v) => localStorage.setItem(hideReadStorageKey, v ? 'true' : 'false');
-const updateHideReadLink = () => { hideReadLink.textContent = isHideRead() ? '[show read]' : '[hide read]'; };
-
 const rerender = () => { if (lastStories) render(lastStories, lastDomain); };
+
+const makeToggle = (link, word, storageKey) => {
+  const get = () => localStorage.getItem(storageKey) === 'true';
+  const set = (v) => localStorage.setItem(storageKey, v ? 'true' : 'false');
+  const update = () => { link.textContent = get() ? '[show ' + word + ']' : '[hide ' + word + ']'; };
+  link.addEventListener('click', (e) => {
+    e.preventDefault();
+    set(!get());
+    update();
+    rerender();
+  });
+  update();
+  return get;
+};
+
+const isHideRead = makeToggle(hideReadLink, 'read', 'hn-hide-read');
+const isHideLiked = makeToggle(hideLikedLink, 'liked', 'hn-hide-liked');
 
 const readKey = (d) => 'hn-reads:' + d;
 const qualityKey = (d) => 'hn-quality:' + d;
@@ -49,9 +63,11 @@ function render(stories, domain) {
   const qualityFlags = getFlags(qualityKey, domain);
   const clickedFlags = getFlags(clickedKey, domain);
   const hideRead = isHideRead();
+  const hideLiked = isHideLiked();
   list.innerHTML = '';
   for (const s of stories) {
     if (hideRead && reads[s.id] && !qualityFlags[s.id]) continue;
+    if (hideLiked && qualityFlags[s.id]) continue;
     const li = document.createElement('li');
     const row = document.createElement('div');
     row.className = 'row';
@@ -139,13 +155,6 @@ async function load() {
 }
 
 form.addEventListener('submit', (e) => { e.preventDefault(); load(); });
-hideReadLink.addEventListener('click', (e) => {
-  e.preventDefault();
-  setHideRead(!isHideRead());
-  updateHideReadLink();
-  rerender();
-});
-updateHideReadLink();
 load();
 </script>
 </body>
