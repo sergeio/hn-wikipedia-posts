@@ -14,6 +14,7 @@
   <button type="submit">Load</button>
   <span id="status"></span>
 </form>
+<a href="#" id="hideReadLink">[hide read]</a>
 <ul id="list"></ul>
 <script>
 const list = document.getElementById('list');
@@ -21,6 +22,17 @@ const status = document.getElementById('status');
 const form = document.getElementById('f');
 const domainInput = document.getElementById('domain');
 const countInput = document.getElementById('count');
+const hideReadLink = document.getElementById('hideReadLink');
+
+let lastStories = null;
+let lastDomain = null;
+
+const hideReadStorageKey = 'hn-hide-read';
+const isHideRead = () => localStorage.getItem(hideReadStorageKey) === 'true';
+const setHideRead = (v) => localStorage.setItem(hideReadStorageKey, v ? 'true' : 'false');
+const updateHideReadLink = () => { hideReadLink.textContent = isHideRead() ? '[show read]' : '[hide read]'; };
+
+const rerender = () => { if (lastStories) render(lastStories, lastDomain); };
 
 const readKey = (d) => 'hn-reads:' + d;
 const qualityKey = (d) => 'hn-quality:' + d;
@@ -36,8 +48,10 @@ function render(stories, domain) {
   const reads = getFlags(readKey, domain);
   const qualityFlags = getFlags(qualityKey, domain);
   const clickedFlags = getFlags(clickedKey, domain);
+  const hideRead = isHideRead();
   list.innerHTML = '';
   for (const s of stories) {
+    if (hideRead && reads[s.id] && !qualityFlags[s.id]) continue;
     const li = document.createElement('li');
     const row = document.createElement('div');
     row.className = 'row';
@@ -52,6 +66,7 @@ function render(stories, domain) {
       setFlag(readKey, domain, s.id, cb.checked);
       li.classList.toggle('read', cb.checked);
       if (cb.checked) clearClicked();
+      if (isHideRead()) rerender();
     });
     const qbtn = document.createElement('button');
     qbtn.type = 'button';
@@ -70,6 +85,7 @@ function render(stories, domain) {
         setFlag(readKey, domain, s.id, true);
         li.classList.add('read');
       }
+      if (isHideRead()) rerender();
     });
     const pts = document.createElement('a');
     pts.className = 'pts';
@@ -115,6 +131,8 @@ async function load() {
     if (!resp.ok) throw new Error('HTTP ' + resp.status);
     const stories = await resp.json();
     status.textContent = stories.length + ' stories';
+    lastStories = stories;
+    lastDomain = domain;
     render(stories, domain);
   } catch (e) {
     status.textContent = 'error: ' + e.message;
@@ -123,6 +141,13 @@ async function load() {
 }
 
 form.addEventListener('submit', (e) => { e.preventDefault(); load(); });
+hideReadLink.addEventListener('click', (e) => {
+  e.preventDefault();
+  setHideRead(!isHideRead());
+  updateHideReadLink();
+  rerender();
+});
+updateHideReadLink();
 load();
 </script>
 </body>

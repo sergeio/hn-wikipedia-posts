@@ -1,6 +1,6 @@
 body { font-family: Verdana, sans-serif; background: #f6f6ef; margin: 0; padding: 1rem; }
 h1 { font-size: 1.2rem; }
-form { margin-bottom: 1rem; }
+form { margin-bottom: 0.25rem; }
 input, button { font-size: 1rem; padding: 0.25rem; }
 #status { margin-left: 0.5rem; color: #666; }
 ul { list-style: none; padding: 0; max-width: 50rem; }
@@ -27,3 +27,5 @@ button.quality {
 button.quality:hover { opacity: 0.8; }
 button.quality[aria-pressed="true"] { opacity: 1; filter: none; }
 li.clicked .row { outline: 2px dashed #555; outline-offset: 3px; padding: 3px; }
+#hideReadLink { display: inline-block; margin: 0.25rem 0 0.5rem; font-size: 0.8rem; color: #666; text-decoration: none; }
+#hideReadLink:hover { text-decoration: underline; }
