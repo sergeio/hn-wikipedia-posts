@@ -24,6 +24,7 @@ const countInput = document.getElementById('count');
 
 const readKey = (d) => 'hn-reads:' + d;
 const qualityKey = (d) => 'hn-quality:' + d;
+const clickedKey = (d) => 'hn-clicked:' + d;
 const getFlags = (key, d) => { try { return JSON.parse(localStorage.getItem(key(d))) || {}; } catch { return {}; } };
 const setFlag = (key, d, id, v) => {
   const r = getFlags(key, d);
@@ -34,17 +35,23 @@ const setFlag = (key, d, id, v) => {
 function render(stories, domain) {
   const reads = getFlags(readKey, domain);
   const qualityFlags = getFlags(qualityKey, domain);
+  const clickedFlags = getFlags(clickedKey, domain);
   list.innerHTML = '';
   for (const s of stories) {
     const li = document.createElement('li');
     const row = document.createElement('div');
     row.className = 'row';
+    const clearClicked = () => {
+      setFlag(clickedKey, domain, s.id, false);
+      li.classList.remove('clicked');
+    };
     const cb = document.createElement('input');
     cb.type = 'checkbox';
     cb.checked = !!reads[s.id];
     cb.addEventListener('change', () => {
       setFlag(readKey, domain, s.id, cb.checked);
       li.classList.toggle('read', cb.checked);
+      if (cb.checked) clearClicked();
     });
     const qbtn = document.createElement('button');
     qbtn.type = 'button';
@@ -57,6 +64,7 @@ function render(stories, domain) {
       setFlag(qualityKey, domain, s.id, on);
       qbtn.setAttribute('aria-pressed', String(on));
       li.classList.toggle('quality', on);
+      if (on) clearClicked();
       if (on && !cb.checked) {
         cb.checked = true;
         setFlag(readKey, domain, s.id, true);
@@ -74,6 +82,10 @@ function render(stories, domain) {
     a.href = s.url;
     a.textContent = s.title;
     a.rel = 'noreferrer';
+    a.addEventListener('click', () => {
+      setFlag(clickedKey, domain, s.id, true);
+      li.classList.add('clicked');
+    });
     title.appendChild(a);
     let year = null;
     if (s.year) {
@@ -89,6 +101,7 @@ function render(stories, domain) {
     li.appendChild(row);
     if (cb.checked) li.classList.add('read');
     if (qbtn.getAttribute('aria-pressed') === 'true') li.classList.add('quality');
+    if (clickedFlags[s.id]) li.classList.add('clicked');
     list.appendChild(li);
   }
 }

@@ -26,3 +26,4 @@ button.quality {
 }
 button.quality:hover { opacity: 0.8; }
 button.quality[aria-pressed="true"] { opacity: 1; filter: none; }
+li.clicked .row { outline: 2px dashed #555; outline-offset: 3px; padding: 3px; }
