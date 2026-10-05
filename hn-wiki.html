@@ -16,7 +16,6 @@ li { margin-bottom: 0.4rem; }
 .pts { color: #a8a8a8; font-size: 0.8rem; min-width: 2rem; text-align: right; }
 input[type="checkbox"] { accent-color: #b8b8b8; opacity: 0.55; }
 input[type="checkbox"]:hover { opacity: 1; }
-.dom { color: #828282; font-size: 0.85rem; }
 .year { color: #828282; font-size: 0.75rem; }
 a.pts { text-decoration: none; }
 a.pts:hover { text-decoration: underline; color: #666; }
@@ -223,10 +222,7 @@ function render(stories, domain) {
       year.className = 'year';
       year.textContent = '[' + s.year + ']';
     }
-    const dom = document.createElement('span');
-    dom.className = 'dom';
-    dom.textContent = '(' + s.domain + ')';
-    row.append(cb, qbtn, pts, title, dom);
+    row.append(cb, qbtn, pts, title);
     if (year) title.before(year);
     li.appendChild(row);
     if (cb.checked) li.classList.add('read');
