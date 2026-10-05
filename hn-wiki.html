@@ -259,9 +259,14 @@ function render(stories, domain) {
     a.href = s.url;
     a.textContent = s.title;
     a.rel = 'noreferrer';
-    a.addEventListener('click', () => {
+    const markClicked = () => {
       setFlag(clickedKey, domain, s.id, true);
       li.classList.add('clicked');
+    };
+    a.addEventListener('click', markClicked);
+    a.addEventListener('auxclick', (e) => {
+      if (e.button !== 1) return;
+      markClicked();
     });
     title.appendChild(a);
     let year = null;
