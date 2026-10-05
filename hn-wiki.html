@@ -42,7 +42,7 @@ li.clicked .row { outline: 2px dashed #555; outline-offset: 3px; padding: 3px; }
 <h1>Hacker News top posts by domain</h1>
 <form id="f">
   <label>Domain: <input id="domain" value="wikipedia.org" size="20"></label>
-  <label>Stories: <input id="count" type="number" min="1" max="1000" value="50" size="5"></label>
+  <label>Stories: <input id="count" type="number" min="1" max="1000" value="150" size="5"></label>
   <button type="submit">Load</button>
   <span id="status"></span>
 </form>
@@ -237,7 +237,7 @@ function render(stories, domain) {
 }
 
 async function load() {
-  const count = countInput.value || 50;
+  const count = countInput.value || 150;
   let domain;
   try {
     domain = normalizeDomain(domainInput.value || 'wikipedia.org');
