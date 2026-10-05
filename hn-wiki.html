@@ -131,14 +131,63 @@ const isHideRead = makeToggle(hideReadLink, 'read', 'hn-hide-read');
 const isHideUnread = makeToggle(hideUnreadLink, 'unread', 'hn-hide-unread');
 const isHideLiked = makeToggle(hideLikedLink, 'liked', 'hn-hide-liked');
 
-const readKey = (d) => 'hn-reads:' + d;
-const qualityKey = (d) => 'hn-quality:' + d;
-const clickedKey = (d) => 'hn-clicked:' + d;
-const getFlags = (key, d) => { try { return JSON.parse(localStorage.getItem(key(d))) || {}; } catch { return {}; } };
-const setFlag = (key, d, id, v) => {
-  const r = getFlags(key, d);
-  if (v) r[id] = true; else delete r[id];
-  localStorage.setItem(key(d), JSON.stringify(r));
+const stateKey = (d) => 'hn-state:' + d;
+const LEGACY_PREFIXES = ['hn-reads:', 'hn-quality:', 'hn-clicked:'];
+
+const getJson = (k) => { try { return JSON.parse(localStorage.getItem(k)) || {}; } catch { return {}; } };
+const loadRawState = (d) => {
+  try {
+    const s = JSON.parse(localStorage.getItem(stateKey(d)));
+    return (s && s.v === 2 && typeof s === 'object') ? s : null;
+  } catch { return null; }
+};
+const saveState = (d, state) => {
+  try { localStorage.setItem(stateKey(d), JSON.stringify(state)); } catch {}
+};
+
+const migrateState = () => {
+  const domains = new Set();
+  for (let i = 0; i < localStorage.length; i++) {
+    const k = localStorage.key(i);
+    const p = LEGACY_PREFIXES.find((pref) => k.startsWith(pref));
+    if (p) domains.add(k.slice(p.length));
+  }
+  for (const d of domains) {
+    if (!loadRawState(d)) {
+      saveState(d, {
+        v: 2,
+        read: getJson('hn-reads:' + d),
+        liked: getJson('hn-quality:' + d),
+        clicked: getJson('hn-clicked:' + d),
+      });
+    }
+    for (const p of LEGACY_PREFIXES) localStorage.removeItem(p + d);
+  }
+};
+migrateState();
+
+const loadState = (d) => {
+  const s = loadRawState(d);
+  return s ? { read: s.read, liked: s.liked, clicked: s.clicked } : { read: {}, liked: {}, clicked: {} };
+};
+
+const setStoryState = (d, id, patch) => {
+  const state = loadRawState(d) || { v: 2, read: {}, liked: {}, clicked: {} };
+  for (const field of ['read', 'liked', 'clicked']) if (!state[field]) state[field] = {};
+  if (patch.liked === true) { state.read[id] = true; delete state.clicked[id]; }
+  if (patch.read === true) delete state.clicked[id];
+  for (const [field, v] of Object.entries(patch)) {
+    if (v === undefined) continue;
+    if (v) state[field][id] = true; else delete state[field][id];
+  }
+  saveState(d, state);
+  return { read: state.read, liked: state.liked, clicked: state.clicked };
+};
+
+const markClicked = (d, id) => {
+  const s = loadState(d);
+  if (s.read[id] || s.liked[id]) return s;
+  return setStoryState(d, id, { clicked: true });
 };
 
 function normalizeDomain(raw) {
@@ -162,8 +211,10 @@ const writeCache = (d, hits) => {
   } catch {}
 };
 
+const isBuiltinDomain = (d) => d === 'wikipedia.org';
+
 async function fetchStories(domain, count) {
-  if (domain === 'wikipedia.org' && typeof EMBEDDED_WIKIPEDIA !== 'undefined') {
+  if (isBuiltinDomain(domain) && typeof EMBEDDED_WIKIPEDIA !== 'undefined') {
     const stories = EMBEDDED_WIKIPEDIA.slice(0, count).map((h) => ({
       id: h.i, title: h.t, points: h.p, url: h.u, year: h.y,
     }));
@@ -193,7 +244,7 @@ async function fetchStories(domain, count) {
     }));
     hits = hits.filter((h) => !isFiltered(h.title));
     hits.sort((a, b) => b.points - a.points);
-    if (domain !== 'wikipedia.org') writeCache(domain, hits);
+    if (!isBuiltinDomain(domain)) writeCache(domain, hits);
     return { stories: hits.slice(0, count), fromCache: false };
   } catch (e) {
     if (cached) return { stories: cached.hits.slice(0, count), fromCache: true };
@@ -201,88 +252,84 @@ async function fetchStories(domain, count) {
   }
 }
 
+function buildRow(s, domain, flags) {
+  const li = document.createElement('li');
+  const row = document.createElement('div');
+  row.className = 'row';
+  const cb = document.createElement('input');
+  cb.type = 'checkbox';
+  cb.checked = !!flags.read[s.id];
+  cb.addEventListener('change', () => {
+    const st = setStoryState(domain, s.id, { read: cb.checked });
+    li.classList.toggle('read', !!st.read[s.id]);
+    li.classList.toggle('clicked', !!st.clicked[s.id]);
+    if (isHideRead()) rerender();
+  });
+  const qbtn = document.createElement('button');
+  qbtn.type = 'button';
+  qbtn.className = 'quality';
+  qbtn.title = 'high quality';
+  qbtn.textContent = '👍';
+  qbtn.setAttribute('aria-pressed', String(!!flags.liked[s.id]));
+  qbtn.addEventListener('click', () => {
+    const on = qbtn.getAttribute('aria-pressed') !== 'true';
+    const st = setStoryState(domain, s.id, { liked: on });
+    qbtn.setAttribute('aria-pressed', String(on));
+    li.classList.toggle('quality', on);
+    li.classList.toggle('clicked', !!st.clicked[s.id]);
+    if (st.read[s.id] && !cb.checked) {
+      cb.checked = true;
+      li.classList.add('read');
+    }
+    if (isHideRead()) rerender();
+  });
+  const pts = document.createElement('a');
+  pts.className = 'pts';
+  pts.href = 'https://news.ycombinator.com/item?id=' + s.id;
+  pts.textContent = s.points;
+  pts.rel = 'noreferrer';
+  const title = document.createElement('span');
+  title.className = 'title';
+  const a = document.createElement('a');
+  a.href = s.url;
+  a.textContent = s.title;
+  a.rel = 'noreferrer';
+  const onVisit = () => {
+    const st = markClicked(domain, s.id);
+    li.classList.toggle('clicked', !!st.clicked[s.id]);
+  };
+  a.addEventListener('click', onVisit);
+  a.addEventListener('auxclick', (e) => {
+    if (e.button !== 1) return;
+    onVisit();
+  });
+  title.appendChild(a);
+  let year = null;
+  if (s.year) {
+    year = document.createElement('span');
+    year.className = 'year';
+    year.textContent = '[' + s.year + ']';
+  }
+  row.append(cb, qbtn, pts, title);
+  if (year) title.before(year);
+  li.appendChild(row);
+  if (flags.read[s.id]) li.classList.add('read');
+  if (flags.liked[s.id]) li.classList.add('quality');
+  if (flags.clicked[s.id]) li.classList.add('clicked');
+  return li;
+}
+
 function render(stories, domain) {
-  const reads = getFlags(readKey, domain);
-  const qualityFlags = getFlags(qualityKey, domain);
-  const clickedFlags = getFlags(clickedKey, domain);
+  const flags = loadState(domain);
   const hideRead = isHideRead();
   const hideUnread = isHideUnread();
   const hideLiked = isHideLiked();
   list.innerHTML = '';
   for (const s of stories) {
-    if (hideRead && reads[s.id] && !qualityFlags[s.id]) continue;
-    if (hideUnread && !reads[s.id]) continue;
-    if (hideLiked && qualityFlags[s.id]) continue;
-    const li = document.createElement('li');
-    const row = document.createElement('div');
-    row.className = 'row';
-    const clearClicked = () => {
-      setFlag(clickedKey, domain, s.id, false);
-      li.classList.remove('clicked');
-    };
-    const cb = document.createElement('input');
-    cb.type = 'checkbox';
-    cb.checked = !!reads[s.id];
-    cb.addEventListener('change', () => {
-      setFlag(readKey, domain, s.id, cb.checked);
-      li.classList.toggle('read', cb.checked);
-      if (cb.checked) clearClicked();
-      if (isHideRead()) rerender();
-    });
-    const qbtn = document.createElement('button');
-    qbtn.type = 'button';
-    qbtn.className = 'quality';
-    qbtn.title = 'high quality';
-    qbtn.textContent = '👍';
-    qbtn.setAttribute('aria-pressed', String(!!qualityFlags[s.id]));
-    qbtn.addEventListener('click', () => {
-      const on = qbtn.getAttribute('aria-pressed') !== 'true';
-      setFlag(qualityKey, domain, s.id, on);
-      qbtn.setAttribute('aria-pressed', String(on));
-      li.classList.toggle('quality', on);
-      if (on) clearClicked();
-      if (on && !cb.checked) {
-        cb.checked = true;
-        setFlag(readKey, domain, s.id, true);
-        li.classList.add('read');
-      }
-      if (isHideRead()) rerender();
-    });
-    const pts = document.createElement('a');
-    pts.className = 'pts';
-    pts.href = 'https://news.ycombinator.com/item?id=' + s.id;
-    pts.textContent = s.points;
-    pts.rel = 'noreferrer';
-    const title = document.createElement('span');
-    title.className = 'title';
-    const a = document.createElement('a');
-    a.href = s.url;
-    a.textContent = s.title;
-    a.rel = 'noreferrer';
-    const markClicked = () => {
-      if (reads[s.id] || qualityFlags[s.id]) return;
-      setFlag(clickedKey, domain, s.id, true);
-      li.classList.add('clicked');
-    };
-    a.addEventListener('click', markClicked);
-    a.addEventListener('auxclick', (e) => {
-      if (e.button !== 1) return;
-      markClicked();
-    });
-    title.appendChild(a);
-    let year = null;
-    if (s.year) {
-      year = document.createElement('span');
-      year.className = 'year';
-      year.textContent = '[' + s.year + ']';
-    }
-    row.append(cb, qbtn, pts, title);
-    if (year) title.before(year);
-    li.appendChild(row);
-    if (cb.checked) li.classList.add('read');
-    if (qbtn.getAttribute('aria-pressed') === 'true') li.classList.add('quality');
-    if (clickedFlags[s.id]) li.classList.add('clicked');
-    list.appendChild(li);
+    if (hideRead && flags.read[s.id] && !flags.liked[s.id]) continue;
+    if (hideUnread && !flags.read[s.id]) continue;
+    if (hideLiked && flags.liked[s.id]) continue;
+    list.appendChild(buildRow(s, domain, flags));
   }
 }
 
