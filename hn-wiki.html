@@ -4,7 +4,39 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>HN by domain</title>
-<link rel="stylesheet" href="/style.css">
+<style>
+body { font-family: Verdana, sans-serif; background: #f6f6ef; margin: 0; padding: 1rem; }
+h1 { font-size: 1.2rem; }
+form { margin-bottom: 0.25rem; }
+input, button { font-size: 1rem; padding: 0.25rem; }
+#status { margin-left: 0.5rem; color: #666; }
+ul { list-style: none; padding: 0; max-width: 50rem; }
+li { margin-bottom: 0.4rem; }
+.row { display: flex; align-items: baseline; gap: 0.5rem; }
+.pts { color: #a8a8a8; font-size: 0.8rem; min-width: 2rem; text-align: right; }
+input[type="checkbox"] { accent-color: #b8b8b8; opacity: 0.55; }
+input[type="checkbox"]:hover { opacity: 1; }
+.dom { color: #828282; font-size: 0.85rem; }
+.year { color: #828282; font-size: 0.75rem; }
+a.pts { text-decoration: none; }
+a.pts:hover { text-decoration: underline; color: #666; }
+.title a { color: #000; text-decoration: none; }
+.title a:hover { text-decoration: underline; }
+li.read .title a { color: #b0b0b0; text-decoration: line-through; }
+li.read .pts { color: #d4d4d4; }
+li.quality .title a { color: #7a5c00; text-decoration: underline; }
+li.quality .pts { color: #a08a00; }
+button.quality {
+  background: none; border: none; padding: 0;
+  font-size: 0.9rem; cursor: pointer; opacity: 0.35;
+  filter: grayscale(1);
+}
+button.quality:hover { opacity: 0.8; }
+button.quality[aria-pressed="true"] { opacity: 1; filter: none; }
+li.clicked .row { outline: 2px dashed #555; outline-offset: 3px; padding: 3px; }
+.toggleLink { display: inline-block; margin: 0.25rem 0.25rem 0.5rem 0; font-size: 0.8rem; color: #666; text-decoration: none; }
+.toggleLink:hover { text-decoration: underline; }
+</style>
 </head>
 <body>
 <h1>Hacker News top posts by domain</h1>
@@ -27,6 +59,13 @@ const countInput = document.getElementById('count');
 const hideReadLink = document.getElementById('hideReadLink');
 const hideUnreadLink = document.getElementById('hideUnreadLink');
 const hideLikedLink = document.getElementById('hideLikedLink');
+
+const API_BASE = 'https://hn.algolia.com/api/v1/search';
+const CACHE_TTL = 30 * 86400 * 1000;
+const FILTERED_TITLE_RES = [
+  /\bhas died\b/i,
+  /wikip|wikimedia/i,
+];
 
 let lastStories = null;
 let lastDomain = null;
@@ -60,6 +99,60 @@ const setFlag = (key, d, id, v) => {
   if (v) r[id] = true; else delete r[id];
   localStorage.setItem(key(d), JSON.stringify(r));
 };
+
+function normalizeDomain(raw) {
+  raw = raw.trim().toLowerCase().replace(/^https?:\/\//, '').split('/')[0].split('?')[0];
+  if (!/^[a-z0-9.-]+\.[a-z]{2,}$/.test(raw)) throw new Error('invalid domain');
+  return raw;
+}
+
+const isFiltered = (title) => FILTERED_TITLE_RES.some((rx) => rx.test(title));
+
+const cacheKey = (d) => 'hn-cache:' + d;
+const readCache = (d) => {
+  try {
+    const data = JSON.parse(localStorage.getItem(cacheKey(d)));
+    return data && typeof data === 'object' && Array.isArray(data.hits) ? data : null;
+  } catch { return null; }
+};
+const writeCache = (d, hits) => {
+  try {
+    localStorage.setItem(cacheKey(d), JSON.stringify({ fetched_at: Date.now(), hits }));
+  } catch {}
+};
+
+async function fetchStories(domain, count) {
+  const cached = readCache(domain);
+  if (cached && Date.now() - cached.fetched_at < CACHE_TTL && cached.hits.length >= count) {
+    return { stories: cached.hits.slice(0, count), fromCache: true };
+  }
+  try {
+    const url = API_BASE + '?' + new URLSearchParams({
+      tags: 'story',
+      restrictSearchableAttributes: 'url',
+      query: domain,
+      hitsPerPage: '1000',
+    });
+    const resp = await fetch(url);
+    if (!resp.ok) throw new Error('HTTP ' + resp.status);
+    const data = await resp.json();
+    let hits = (data.hits || []).map((h) => ({
+      id: h.objectID,
+      title: h.title || h.story_title || '(untitled)',
+      points: h.points || 0,
+      url: h.url || 'https://news.ycombinator.com/item?id=' + h.objectID,
+      domain: (h.url && h.url.includes('://')) ? h.url.split('/')[2] : domain,
+      year: (h.created_at || '').slice(0, 4),
+    }));
+    hits = hits.filter((h) => !isFiltered(h.title));
+    hits.sort((a, b) => b.points - a.points);
+    writeCache(domain, hits);
+    return { stories: hits.slice(0, count), fromCache: false };
+  } catch (e) {
+    if (cached) return { stories: cached.hits.slice(0, count), fromCache: true };
+    throw e;
+  }
+}
 
 function render(stories, domain) {
   const reads = getFlags(readKey, domain);
@@ -144,14 +237,20 @@ function render(stories, domain) {
 }
 
 async function load() {
-  const domain = domainInput.value.trim() || 'wikipedia.org';
   const count = countInput.value || 50;
+  let domain;
   try {
-    const resp = await fetch(`/api/stories?domain=${encodeURIComponent(domain)}&count=${encodeURIComponent(count)}`);
-    if (!resp.ok) throw new Error('HTTP ' + resp.status);
-    const stories = await resp.json();
+    domain = normalizeDomain(domainInput.value || 'wikipedia.org');
+  } catch (e) {
+    status.textContent = 'error: ' + e.message;
+    list.innerHTML = '';
+    return;
+  }
+  try {
+    const { stories, fromCache } = await fetchStories(domain, count);
     lastStories = stories;
     lastDomain = domain;
+    status.textContent = fromCache ? '(cached)' : '';
     render(stories, domain);
   } catch (e) {
     status.textContent = 'error: ' + e.message;
