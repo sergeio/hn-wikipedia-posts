@@ -1,7 +1,8 @@
 'use strict';
 // Black-box tests for hn-wiki.html: runs the page's inline scripts in a VM
-// sandbox with a minimal DOM/localStorage stub and exercises migration,
-// per-story state rules, toggles, theme, and the API/cache path.
+// sandbox with a minimal DOM/localStorage stub and exercises per-story state
+// rules, toggles, and theme. The page is fully offline; fetch is stubbed to
+// reject so the tests fail loudly if it's ever called.
 // Run: node test.js
 
 const fs = require('fs');
@@ -104,12 +105,11 @@ function makeStore(seed) {
 }
 
 const byId = () => new Map();
-function runApp(storeSeed, fetchImpl) {
+function runApp(storeSeed) {
   const store = makeStore(storeSeed);
   const els = byId();
-  const ids = ['list', 'status', 'f', 'domain', 'count', 'hideReadLink', 'hideUnreadLink', 'hideLikedLink', 'themeLink'];
+  const ids = ['list', 'f', 'count', 'hideReadLink', 'hideUnreadLink', 'hideLikedLink', 'themeLink'];
   for (const id of ids) els.set(id, new El(id === 'f' ? 'form' : id === 'list' ? 'ul' : 'div'));
-  els.get('domain').value = 'wikipedia.org';
   els.get('count').value = '150';
   const doc = {
     body: new El('body'),
@@ -120,9 +120,8 @@ function runApp(storeSeed, fetchImpl) {
     localStorage: store,
     document: doc,
     console,
-    URLSearchParams,
     setTimeout,
-    fetch: fetchImpl || (() => Promise.reject(new Error('unexpected fetch'))),
+    fetch: () => Promise.reject(new Error('unexpected fetch')),
     Math, Date, JSON, Object, Array, Set, String, Number, Error, Promise, isNaN, RegExp,
   };
   vm.createContext(sandbox);
@@ -136,43 +135,19 @@ const rowKids = (li) => rowOf(li).children; // [cb, qbtn, pts, (year), title]
 const storyId = (li) => rowKids(li)[2].href.split('id=')[1];
 
 (async () => {
-  // --- Migration: legacy keys merged, deleted, idempotent ---
-  const legacySeed = {
-    'hn-reads:example.com': '{"1":true,"4":true}',
-    'hn-quality:example.com': '{"2":true}',
-    'hn-clicked:example.com': '{"3":true,"4":true}',
-    'hn-hide-read': 'true',
-  };
-  let r1 = await runApp(legacySeed);
-  test('migration: legacy keys removed, v2 state written', () => {
-    assert.strictEqual(r1.store.getItem('hn-reads:example.com'), null);
-    assert.strictEqual(r1.store.getItem('hn-quality:example.com'), null);
-    assert.strictEqual(r1.store.getItem('hn-clicked:example.com'), null);
-    const st = JSON.parse(r1.store.getItem('hn-state:example.com'));
-    assert.deepStrictEqual(st, {
-      v: 2,
-      read: { 1: true, 4: true },
-      liked: { 2: true },
-      clicked: { 3: true, 4: true },
-    });
-  });
-  test('migration: unrelated keys untouched', () => {
-    assert.strictEqual(r1.store.getItem('hn-hide-read'), 'true');
-  });
-  const after1 = Object.fromEntries(r1.store._map);
-  const r1b = await runApp(after1);
-  test('migration: idempotent on second load', () => {
-    assert.deepStrictEqual(JSON.parse(r1b.store.getItem('hn-state:example.com')), {
-      v: 2, read: { 1: true, 4: true }, liked: { 2: true }, clicked: { 3: true, 4: true },
-    });
-  });
-
   // --- Built-in wikipedia render ---
   const rw = await runApp();
   test('builtin: renders 150 wikipedia rows from embedded data', () => {
     const list = rw.els.get('list');
     assert.strictEqual(list.children.length, 150);
-    assert.ok(rw.els.get('status').textContent.includes('built-in'));
+  });
+
+  // --- Count input drives list length ---
+  const rc = await runApp();
+  rc.els.get('count').value = '10';
+  rc.els.get('count').fire('change');
+  test('count: changing the count input re-renders', () => {
+    assert.strictEqual(rc.els.get('list').children.length, 10);
   });
 
   // --- Interactions on the built-in list ---
@@ -185,7 +160,7 @@ const storyId = (li) => rowKids(li)[2].href.split('id=')[1];
   const qbtn0 = () => rowKids(li0)[1];
   const link0 = () => rowKids(li0)[rowKids(li0).length - 1].children[0];
   const state = () => {
-    const s = JSON.parse(store.getItem('hn-state:wikipedia.org') || '{}');
+    const s = JSON.parse(store.getItem('hn-state') || '{}');
     return { read: s.read || {}, liked: s.liked || {}, clicked: s.clicked || {} };
   };
 
@@ -200,7 +175,7 @@ const storyId = (li) => rowKids(li)[2].href.split('id=')[1];
     const li1 = list.children[1];
     const id1 = storyId(li1);
     rowKids(li1)[rowKids(li1).length - 1].children[0].fire('auxclick', { button: 1 });
-    assert.strictEqual(JSON.parse(store.getItem('hn-state:wikipedia.org')).clicked[id1], true);
+    assert.strictEqual(JSON.parse(store.getItem('hn-state')).clicked[id1], true);
     assert.ok(li1.classList.contains('clicked'));
   });
 
@@ -255,7 +230,7 @@ const storyId = (li) => rowKids(li)[2].href.split('id=')[1];
     cb3.checked = true;
     cb3.fire('change');
     rowKids(li3)[rowKids(li3).length - 1].children[0].fire('click');
-    assert.strictEqual(JSON.parse(store.getItem('hn-state:wikipedia.org')).clicked[id3], undefined);
+    assert.strictEqual(JSON.parse(store.getItem('hn-state')).clicked[id3], undefined);
   });
 
   test('click does not mark clicked when liked', () => {
@@ -263,7 +238,7 @@ const storyId = (li) => rowKids(li)[2].href.split('id=')[1];
     const id4 = storyId(li4);
     const q4 = rowKids(li4)[1];
     q4.fire('click');
-    assert.strictEqual(JSON.parse(store.getItem('hn-state:wikipedia.org')).clicked[id4], undefined);
+    assert.strictEqual(JSON.parse(store.getItem('hn-state')).clicked[id4], undefined);
   });
 
   test('hide read toggle: liked rows survive, read rows hidden', () => {
@@ -290,7 +265,7 @@ const storyId = (li) => rowKids(li)[2].href.split('id=')[1];
     rowKids(li5)[1].fire('click');
     const after = new Set([...list.children.map(storyId)]);
     assert.ok(after.has(id5), 'liked row still visible');
-    assert.strictEqual(JSON.parse(store.getItem('hn-state:wikipedia.org')).read[id5], true);
+    assert.strictEqual(JSON.parse(store.getItem('hn-state')).read[id5], true);
     ri.els.get('hideReadLink').fire('click');
   });
 
@@ -304,64 +279,14 @@ const storyId = (li) => rowKids(li)[2].href.split('id=')[1];
     assert.strictEqual(store.getItem('hn-theme'), 'dark');
   });
 
-  // --- Second domain: API path, filtering, cache ---
-  let fetchCalls = 0;
-  const fetchImpl = () => {
-    fetchCalls++;
-    return Promise.resolve({
-      ok: true,
-      json: async () => ({
-        hits: [
-          { objectID: 'a1', title: 'Foo', points: 10, url: 'https://example.com/a', created_at: '2020-01-01T00:00:00Z' },
-          { objectID: 'a2', title: 'Bar has died', points: 9, url: 'https://example.com/b', created_at: '2020-01-02T00:00:00Z' },
-        ],
-      }),
-    });
-  };
-  const r2 = await runApp(null, fetchImpl);
-  r2.els.get('domain').value = 'example.com';
-  r2.els.get('count').value = '1';
-  r2.els.get('f').fire('submit');
-  await new Promise((res) => setTimeout(res, 10));
-  test('api path: fetches, filters titles, renders', async () => {
-    assert.strictEqual(fetchCalls, 1);
-    assert.strictEqual(r2.els.get('list').children.length, 1);
-    assert.strictEqual(storyId(r2.els.get('list').children[0]), 'a1');
-    assert.strictEqual(r2.els.get('status').textContent, '');
-    const cache = JSON.parse(r2.store.getItem('hn-cache:example.com'));
-    assert.strictEqual(cache.hits.length, 1, 'cache stores filtered hits');
+  // --- Seeded state drives row classes after load ---
+  const r3 = await runApp({
+    'hn-state': JSON.stringify({ read: { [id0]: true }, liked: {}, clicked: { [id0]: true } }),
   });
-
-  // --- Migration feeding render: seeded read/clicked shows classes after load ---
-  const seededStore = {
-    'hn-reads:example.com': '{"a1":true}',
-    'hn-clicked:example.com': '{"a1":true}',
-  };
-  const r3 = await runApp(seededStore, fetchImpl);
-  r3.els.get('domain').value = 'example.com';
-  r3.els.get('count').value = '1';
-  r3.els.get('f').fire('submit');
-  await new Promise((res) => setTimeout(res, 10));
-  test('migrated flags drive row classes', () => {
+  test('seeded flags drive row classes', () => {
     const li = r3.els.get('list').children[0];
     assert.ok(li.classList.contains('read'));
     assert.ok(li.classList.contains('clicked'));
-    assert.strictEqual(r3.store.getItem('hn-reads:example.com'), null);
-    assert.strictEqual(JSON.parse(r3.store.getItem('hn-state:example.com')).read.a1, true);
-  });
-
-  // --- Cache path: second load hits cache, no refetch ---
-  fetchCalls = 0;
-  const r4 = await runApp(null, fetchImpl);
-  r4.els.get('domain').value = 'example.com';
-  r4.els.get('count').value = '1';
-  r4.els.get('f').fire('submit');
-  await new Promise((res) => setTimeout(res, 10));
-  r4.els.get('f').fire('submit');
-  await new Promise((res) => setTimeout(res, 10));
-  test('cache: second submit served from cache without refetch', () => {
-    assert.strictEqual(fetchCalls, 1, 'one fetch across two submits');
-    assert.strictEqual(r4.els.get('status').textContent, '(cached)');
   });
 
   console.log(failures ? `\n${failures} failure(s)` : '\nall tests passed');
