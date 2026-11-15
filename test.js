@@ -1,5 +1,5 @@
 'use strict';
-// Black-box tests for hn-wiki.html: runs the page's inline scripts in a VM
+// Black-box tests for index.html: runs the page's inline scripts in a VM
 // sandbox with a minimal DOM/localStorage stub and exercises per-story state
 // rules, toggles, and theme. The page is fully offline; fetch is stubbed to
 // reject so the tests fail loudly if it's ever called.
@@ -10,7 +10,7 @@ const path = require('path');
 const vm = require('vm');
 const assert = require('assert');
 
-const html = fs.readFileSync(path.join(__dirname, 'hn-wiki.html'), 'utf8');
+const html = fs.readFileSync(path.join(__dirname, 'index.html'), 'utf8');
 const scripts = [...html.matchAll(/<script>([\s\S]*?)<\/script>/g)].map((m) => m[1]);
 const source = scripts.join('\n;\n');
 
